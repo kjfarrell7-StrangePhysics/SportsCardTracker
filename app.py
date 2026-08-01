@@ -4,7 +4,6 @@ from datetime import datetime
 import streamlit as st
 from PIL import Image
 
-# Optional Google GenAI SDK for automated card reading
 try:
   import google.generativeai as genai
 
@@ -12,7 +11,6 @@ try:
 except ImportError:
   HAS_GENAI = False
 
-# Configuration & Setup
 DB_FILE = "card_collection.db"
 IMAGE_DIR = "card_images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
@@ -33,15 +31,9 @@ def init_db():
             val_low REAL,
             val_high REAL,
             front_path TEXT,
-            back_path TEXT,
             date_added TEXT
         )
     """)
-  # Safety check: ensure columns exist if updating an older database
-  cursor.execute("PRAGMA table_info(cards)")
-  columns = [info[1] for info in cursor.fetchall()]
-  if "card_number" not in columns:
-    cursor.execute("ALTER TABLE cards ADD COLUMN card_number TEXT")
   conn.commit()
   conn.close()
 
@@ -49,275 +41,225 @@ def init_db():
 init_db()
 
 st.set_page_config(
-    page_title="Elite Card Collector", page_icon="⭐", layout="wide"
+    page_title="AI Sports Card Vault", page_icon="⚡", layout="wide"
 )
 
-st.title("⭐ Elite Personal Card Collection")
+st.title("⚡ AI Sports Card Vault & Batch Processor")
 
-# Sidebar Configuration for AI & Adding Cards
-st.sidebar.header("Configuration & Input")
+# Sidebar Configuration for API Key
+st.sidebar.header("🔑 AI Configuration")
 api_key = st.sidebar.text_input(
-    "Gemini API Key (Optional for AI Auto-Fill)", type="password"
+    "Gemini API Key",
+    type="password",
+    help="Required for autonomous photo extraction.",
 )
 
-st.sidebar.divider()
-st.sidebar.header("Add New Card")
-
-front_image = st.sidebar.file_uploader(
-    "Card Front Image", type=["jpg", "png", "jpeg"], key="front_upload"
-)
-back_image = st.sidebar.file_uploader(
-    "Card Back Image", type=["jpg", "png", "jpeg"], key="back_upload"
+# Main Navigation Tabs
+tab_upload, tab_vault = st.tabs(
+    ["📥 Batch Upload & AI Processing", "🏛️ Card Vault & Categories"]
 )
 
-ai_player, ai_sport, ai_team, ai_year, ai_num, ai_type = (
-    "",
-    "Baseball",
-    "",
-    2024,
-    "",
-    "Base",
-)
+with tab_upload:
+  st.subheader("Drop Your Card Photos")
+  st.markdown(
+      "Upload one or multiple card photos. The AI will automatically extract"
+      " the player, sport, team, year, and card type, then log it into your"
+      " vault instantly."
+  )
 
-if HAS_GENAI and api_key and front_image:
-  if st.sidebar.button("✨ Auto-Detect Card Details with AI"):
-    try:
-      genai.configure(api_key=api_key)
-      model = genai.GenerativeModel("gemini-2.5-flash")
-      img = Image.open(front_image)
-      prompt = (
-          "Analyze this sports card image. Return strictly the following details"
-          " separated by pipes (|): Player Name | Sport (Baseball, Football,"
-          " or Basketball) | Team | Year | Card Number (e.g. #18 or N/A) | Card"
-          " Type (e.g. Rookie, Prizm, Refractor, Base)"
+  uploaded_files = st.file_uploader(
+      "Choose card images...",
+      type=["jpg", "png", "jpeg"],
+      accept_multiple_files=True,
+  )
+
+  if uploaded_files:
+    if not api_key:
+      st.warning(
+          "⚠️ Please enter your Gemini API key in the sidebar to enable AI"
+          " processing."
       )
-      response = model.generate_content([prompt, img])
-      parts = [p.strip() for p in response.text.split("|")]
-      if len(parts) >= 6:
-        ai_player, ai_sport, ai_team, ai_year, ai_num, ai_type = (
-            parts[0],
-            parts[1],
-            parts[2],
-            int(parts[3]) if parts[3].isdigit() else 2024,
-            parts[4],
-            parts[5],
-        )
-        st.sidebar.success("AI successfully scanned card details!")
-    except Exception as e:
-      st.sidebar.error(f"AI Scan failed: {e}")
-
-with st.sidebar.form("add_card_form"):
-  player_name = st.text_input("Player Name", value=ai_player)
-  sport = st.selectbox(
-      "Sport",
-      ["Baseball", "Football", "Basketball"],
-      index=(
-          ["Baseball", "Football", "Basketball"].index(ai_sport)
-          if ai_sport in ["Baseball", "Football", "Basketball"]
-          else 0
-      ),
-  )
-  team = st.text_input("Team", value=ai_team)
-  year = st.number_input(
-      "Year",
-      min_value=1900,
-      max_value=2026,
-      value=int(ai_year) if ai_year else 2024,
-      step=1,
-  )
-  card_number = st.text_input("Card Number (e.g., #18, 154)", value=ai_num)
-  card_type = st.text_input(
-      "Card Type / Variant (e.g., Rookie, Refractor, Prizm)", value=ai_type
-  )
-
-  st.markdown("**Estimated Valuation Range ($)**")
-  col_l, col_h = st.sidebar.columns(2)
-  with col_l:
-    val_low = st.number_input(
-        "Low (Raw)", min_value=0.0, format="%.2f", value=0.0
-    )
-  with col_h:
-    val_high = st.number_input(
-        "High (Graded)", min_value=0.0, format="%.2f", value=0.0
-    )
-
-  submit_button = st.form_submit_button(label="Save Card to Collection")
-
-  if submit_button:
-    if not player_name or not team:
-      st.error("Please provide at least a Player Name and Team.")
     else:
-      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-      front_path, back_path = "", ""
+      if st.button("🚀 Process All Cards with AI"):
+        genai.configure(api_key=api_key)
+        # Using gemini-2.5-flash as an efficient multimodal engine
+        model = genai.GenerativeModel("gemini-2.5-flash")
 
-      if front_image:
-        front_path = os.path.join(IMAGE_DIR, f"{timestamp}_front.jpg")
-        with open(front_path, "wb") as f:
-          f.write(front_image.getbuffer())
+        progress_bar = st.progress(0)
+        total_files = len(uploaded_files)
 
-      if back_image:
-        back_path = os.path.join(IMAGE_DIR, f"{timestamp}_back.jpg")
-        with open(back_path, "wb") as f:
-          f.write(back_image.getbuffer())
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
 
-      conn = sqlite3.connect(DB_FILE)
-      cursor = conn.cursor()
-      cursor.execute(
-          """
-                INSERT INTO cards (player, sport, team, year, card_number, card_type, val_low, val_high, front_path, back_path, date_added)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-          (
-              player_name,
-              sport,
-              team,
-              year,
-              card_number,
-              card_type,
-              val_low,
-              val_high,
-              front_path,
-              back_path,
-              datetime.now().strftime("%Y-%m-%d"),
-          ),
+        for idx, uploaded_file in enumerate(uploaded_files):
+          try:
+            img = Image.open(uploaded_file)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            front_path = os.path.join(IMAGE_DIR, f"{timestamp}_{idx}.jpg")
+            img.save(front_path)
+
+            prompt = (
+                "Analyze this sports card image. Return strictly and only the"
+                " following details separated by vertical pipes (|): Player"
+                " Name | Sport (Baseball, Football, or Basketball) | Team |"
+                " Year | Card Number (e.g. #18 or N/A) | Card Type (e.g."
+                " Rookie, Prizm, Refractor, Base). Do not include any other"
+                " text."
+            )
+
+            response = model.generate_content([prompt, img])
+            parts = [p.strip() for p in response.text.split("|")]
+
+            if len(parts) >= 6:
+              player = parts[0]
+              sport = parts[1] if parts[1] in ["Baseball", "Football", "Basketball"] else "Baseball"
+              team = parts[2]
+              year = int(parts[3]) if parts[3].isdigit() else 2024
+              card_number = parts[4]
+              card_type = parts[5]
+            else:
+              player, sport, team, year, card_number, card_type = (
+                  "Unknown Player",
+                  "Baseball",
+                  "Unknown Team",
+                  2024,
+                  "N/A",
+                  "Base",
+              )
+
+            # Default baseline valuations (adjustable later)
+            val_low, val_high = 5.0, 25.0
+
+            cursor.execute(
+                """
+                            INSERT INTO cards (player, sport, team, year, card_number, card_type, val_low, val_high, front_path, date_added)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                (
+                    player,
+                    sport,
+                    team,
+                    year,
+                    card_number,
+                    card_type,
+                    val_low,
+                    val_high,
+                    front_path,
+                    datetime.now().strftime("%Y-%m-%d"),
+                ),
+            )
+            conn.commit()
+
+          except Exception as e:
+            st.error(f"Error processing {uploaded_file.name}: {e}")
+
+          progress_bar.progress((idx + 1) / total_files)
+
+        conn.close()
+        st.success(
+            f"🎉 Successfully processed and stored {total_files} cards into"
+            " your vault!"
+        )
+
+with tab_vault:
+  st.subheader("Your Organized Collection")
+
+  conn = sqlite3.connect(DB_FILE)
+  cursor = conn.cursor()
+  cursor.execute("SELECT * FROM cards")
+  rows = cursor.fetchall()
+  conn.close()
+
+  if not rows:
+    st.info(
+        "Your vault is currently empty. Head over to the 'Batch Upload' tab to"
+        " start scanning cards!"
+    )
+  else:
+    card_list = []
+    for r in rows:
+      card_list.append({
+          "id": r[0],
+          "player": r[1],
+          "sport": r[2],
+          "team": r[3],
+          "year": r[4],
+          "card_number": r[5],
+          "card_type": r[6],
+          "val_low": r[7],
+          "val_high": r[8],
+          "front_path": r[9],
+          "date_added": r[10],
+      })
+
+    # Dynamic Filter Controls
+    c1, c2, c3 = st.columns(3)
+    with c1:
+      all_sports = ["All"] + list(set(c["sport"] for c in card_list))
+      selected_sport = st.selectbox("Filter by Sport", all_sports)
+    with c2:
+      all_teams = ["All"] + list(set(c["team"] for c in card_list))
+      selected_team = st.selectbox("Filter by Team", all_teams)
+    with c3:
+      all_types = ["All"] + list(set(c["card_type"] for c in card_list))
+      selected_type = st.selectbox("Filter by Card Type", all_types)
+
+    # Apply filters
+    filtered = card_list
+    if selected_sport != "All":
+      filtered = [c for c in filtered if c["sport"] == selected_sport]
+    if selected_team != "All":
+      filtered = [c for c in filtered if c["team"] == selected_team]
+    if selected_type != "All":
+      filtered = [c for c in filtered if c["card_type"] == selected_type]
+
+    # Metrics overview
+    t_low = sum(c["val_low"] for c in filtered)
+    t_high = sum(c["val_high"] for c in filtered)
+
+    m1, m2 = st.columns(2)
+    with m1:
+      st.metric("Filtered Cards Shown", len(filtered))
+    with m2:
+      st.metric(
+          "Estimated Value Range", value=f"${t_low:,.2f} — ${t_high:,.2f}"
       )
-      conn.commit()
-      conn.close()
-      st.success(f"Successfully added {player_name}!")
 
-# Main Explorer View
-st.subheader("Collection Explorer")
+    st.divider()
 
-conn = sqlite3.connect(DB_FILE)
-cursor = conn.cursor()
-cursor.execute("SELECT * FROM cards")
-rows = cursor.fetchall()
-conn.close()
-
-if not rows:
-  st.info(
-      "Your collection is empty. Upload card photos and fill out details in"
-      " the sidebar!"
-  )
-else:
-  card_list = []
-  for r in rows:
-    # Safely parse and convert data types to avoid calculation/type errors
-    try:
-      v_low = float(r[7]) if len(r) > 7 and r[7] is not None else 0.0
-    except ValueError:
-      v_low = 0.0
-
-    try:
-      v_high = float(r[8]) if len(r) > 8 and r[8] is not None else 0.0
-    except ValueError:
-      v_high = 0.0
-
-    card_list.append({
-        "id": r[0],
-        "player": str(r[1]) if len(r) > 1 and r[1] else "Unknown",
-        "sport": str(r[2]) if len(r) > 2 and r[2] else "Baseball",
-        "team": str(r[3]) if len(r) > 3 and r[3] else "Unknown",
-        "year": int(r[4]) if len(r) > 4 and r[4] else 2024,
-        "card_number": str(r[5]) if len(r) > 5 and r[5] else "",
-        "card_type": str(r[6]) if len(r) > 6 and r[6] else "",
-        "val_low": v_low,
-        "val_high": v_high,
-        "front_path": str(r[9]) if len(r) > 9 and r[9] else "",
-        "back_path": str(r[10]) if len(r) > 10 and r[10] else "",
-        "date_added": str(r[11]) if len(r) > 11 and r[11] else "",
-    })
-
-  # Filter Layout
-  f1, f2, f3 = st.columns(3)
-  with f1:
-    selected_sport = st.selectbox(
-        "Filter by Sport", ["All"] + list(set(c["sport"] for c in card_list))
-    )
-  with f2:
-    selected_team = st.selectbox(
-        "Filter by Team", ["All"] + list(set(c["team"] for c in card_list))
-    )
-  with f3:
-    view_mode = st.radio("View Mode", ["Polished Gallery", "Table Summary"])
-
-  filtered_cards = card_list
-  if selected_sport != "All":
-    filtered_cards = [c for c in filtered_cards if c["sport"] == selected_sport]
-  if selected_team != "All":
-    filtered_cards = [c for c in filtered_cards if c["team"] == selected_team]
-
-  total_low = sum(c["val_low"] for c in filtered_cards)
-  total_high = sum(c["val_high"] for c in filtered_cards)
-
-  m1, m2 = st.columns(2)
-  with m1:
-    st.metric("Total Cards Displayed", len(filtered_cards))
-  with m2:
-    st.metric(
-        "Collection Value Range",
-        value=f"${total_low:,.2f} — ${total_high:,.2f}",
-    )
-
-  st.divider()
-
-  if view_mode == "Polished Gallery":
+    # Visual Gallery Grid Layout
     cols_per_row = 3
-    for i in range(0, len(filtered_cards), cols_per_row):
-      row_cards = filtered_cards[i : i + cols_per_row]
+    for i in range(0, len(filtered), cols_per_row):
+      row_cards = filtered[i : i + cols_per_row]
       cols = st.columns(cols_per_row)
       for idx, card in enumerate(row_cards):
         with cols[idx]:
-          with st.container():
-            if card["front_path"] and os.path.exists(card["front_path"]):
-              st.image(Image.open(card["front_path"]), width="stretch")
-            else:
-              st.warning("No image available")
+          if card["front_path"] and os.path.exists(card["front_path"]):
+            st.image(Image.open(card["front_path"]), width="stretch")
+          else:
+            st.warning("Image missing")
 
-            num_display = (
-                f"({card['card_number']})" if card["card_number"] else ""
-            )
-            st.markdown(f"### {card['player']} {num_display}")
-            st.caption(
-                f"**{card['sport']}** | {card['team']} | {card['year']}"
-            )
-            st.markdown(f"🏷️ Type:")
-            st.markdown(
-                f"💰 **Value:** ${card['val_low']:,.2f} –"
-                f" ${card['val_high']:,.2f}"
-            )
+          st.markdown(
+              f"### {card['player']} `({card['card_number']})`"
+          )
+          st.caption(
+              f"**{card['sport']}** | {card['team']} | {card['year']}"
+          )
+          st.markdown(f"🏷️ Type:")
+          st.markdown(
+              f"💰 **Value:** ${card['val_low']:,.2f} –"
+              f" ${card['val_high']:,.2f}"
+          )
 
-            search_query = (
-                f"{card['year']} {card['player']} {card['card_number']}"
-                f" {card['card_type']}"
-            ).replace(" ", "+")
-            ebay_url = (
-                f"https://www.ebay.com/sch/i.html?_nkw={search_query}&_sacat=0&LH_Sold=1&LH_Complete=1"
-            )
-            st.markdown(
-                f"🔗 [Market Comps (eBay Sold)]({ebay_url})",
-                unsafe_allow_html=True,
-            )
+          search_query = (
+              f"{card['year']} {card['player']} {card['card_number']}"
+              f" {card['card_type']}"
+          ).replace(" ", "+")
+          ebay_url = (
+              f"https://www.ebay.com/sch/i.html?_nkw={search_query}&_sacat=0&LH_Sold=1&LH_Complete=1"
+          )
+          st.markdown(
+              f"🔗 [Market Comps (eBay Sold)]({ebay_url})",
+              unsafe_allow_html=True,
+          )
           st.divider()
-
-  else:
-    table_data = []
-    for c in filtered_cards:
-      search_query = (
-          f"{c['year']} {c['player']} {c['card_number']} {c['card_type']}"
-      ).replace(" ", "+")
-      ebay_url = (
-          f"https://www.ebay.com/sch/i.html?_nkw={search_query}&_sacat=0&LH_Sold=1&LH_Complete=1"
-      )
-      table_data.append({
-          "Player": c["player"],
-          "Sport": c["sport"],
-          "Team": c["team"],
-          "Year": c["year"],
-          "Card #": c["card_number"],
-          "Type": c["card_type"],
-          "Low ($)": c["val_low"],
-          "High ($)": c["val_high"],
-          "Comps Link": ebay_url,
-      })
-    st.dataframe(table_data, width="stretch")
