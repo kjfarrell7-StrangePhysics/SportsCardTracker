@@ -1,329 +1,464 @@
-import os
-import sqlite3
-from datetime import datetime
-import streamlit as st
-from PIL import Image
+[     UTC     ] Logs for sportscardtracker-q3glpeu24kkk4oh5pcsy6v.streamlit.app/
 
-# Optional Google GenAI SDK for automated card reading
-try:
-  import google.generativeai as genai
+────────────────────────────────────────────────────────────────────────────────────────
 
-  HAS_GENAI = True
-except ImportError:
-  HAS_GENAI = False
+[16:26:50] 🚀 Starting up repository: 'sportscardtracker', branch: 'main', main module: 'app.py'
 
-# Configuration & Setup
-DB_FILE = "card_collection.db"
-IMAGE_DIR = "card_images"
-os.makedirs(IMAGE_DIR, exist_ok=True)
+[16:26:50] 🐙 Cloning repository...
+
+[16:26:51] 🐙 Cloning into '/mount/src/sportscardtracker'...
+
+[16:26:51] 🐙 Cloned repository!
+
+[16:26:51] 🐙 Pulling code changes from Github...
+
+[16:26:53] 📦 Processing dependencies...
 
 
-def init_db():
-  conn = sqlite3.connect(DB_FILE)
-  cursor = conn.cursor()
-  # Create table if it doesn't exist
-  cursor.execute("""
-        CREATE TABLE IF NOT EXISTS cards (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            player TEXT,
-            sport TEXT,
-            team TEXT,
-            year INTEGER,
-            card_number TEXT,
-            card_type TEXT,
-            val_low REAL,
-            val_high REAL,
-            front_path TEXT,
-            back_path TEXT,
-            date_added TEXT
-        )
-    """)
-  # Safety check: ensure card_number column exists if table was already created previously
-  cursor.execute("PRAGMA table_info(cards)")
-  columns = [info[1] for info in cursor.fetchall()]
-  if "card_number" not in columns:
-    cursor.execute("ALTER TABLE cards ADD COLUMN card_number TEXT")
-
-  conn.commit()
-  conn.close()
+──────────────────────────────────────── uv ───────────────────────────────────────────
 
 
-init_db()
+Using uv pip install.
 
-st.set_page_config(
-    page_title="Elite Card Collector", page_icon="⭐", layout="wide"
-)
+Using Python 3.14.6 environment at /home/adminuser/venv
 
-# Custom CSS for polished layout
-st.markdown("""
-    <style>
-    .metric-card {
-        background-color: #262730;
-        padding: 15px;
-        border-radius: 8px;
-        text-align: center;
-    }
-    </style>
-""", unsafe_allow_html=True)
+Resolved 41 packages in 405ms
 
-st.title("⭐ Elite Personal Card Collection")
+Prepared 41 packages in 1.45s
 
-# Sidebar Configuration for AI & Adding Cards
-st.sidebar.header("Configuration & Input")
-api_key = st.sidebar.text_input(
-    "Gemini API Key (Optional for AI Auto-Fill)", type="password"
-)
+Installed 41 packages in 79ms
 
-st.sidebar.divider()
-st.sidebar.header("Add New Card")
+ + altair==6.2.2
 
-front_image = st.sidebar.file_uploader(
-    "Card Front Image", type=["jpg", "png", "jpeg"], key="front_upload"
-)
-back_image = st.sidebar.file_uploader(
-    "Card Back Image", type=["jpg", "png", "jpeg"], key="back_upload"
-)
+ + anyio==4.14.2
 
-ai_player, ai_sport, ai_team, ai_year, ai_num, ai_type = (
-    "",
-    "Baseball",
-    "",
-    2024,
-    "",
-    "Base",
-)
+ + attrs==26.1.0
 
-if HAS_GENAI and api_key and front_image:
-  if st.sidebar.button("✨ Auto-Detect Card Details with AI"):
-    try:
-      genai.configure(api_key=api_key)
-      model = genai.GenerativeModel("gemini-2.5-flash")
-      img = Image.open(front_image)
-      prompt = (
-          "Analyze this sports card image. Return strictly the following details"
-          " separated by pipes (|): Player Name | Sport (Baseball, Football,"
-          " or Basketball) | Team | Year | Card Number (e.g. #18 or N/A) | Card"
-          " Type (e.g. Rookie, Prizm, Refractor, Base)"
-      )
-      response = model.generate_content([prompt, img])
-      parts = [p.strip() for p in response.text.split("|")]
-      if len(parts) >= 6:
-        ai_player, ai_sport, ai_team, ai_year, ai_num, ai_type = (
-            parts[0],
-            parts[1],
-            parts[2],
-            int(parts[3]) if parts[3].isdigit() else 2024,
-            parts[4],
-            parts[5],
-        )
-        st.sidebar.success("AI successfully scanned card details!")
-    except Exception as e:
-      st.sidebar.error(f"AI Scan failed: {e}")
+ + blinker==1.9.0
 
-with st.sidebar.form("add_card_form"):
-  player_name = st.text_input("Player Name", value=ai_player)
-  sport = st.selectbox(
-      "Sport",
-      ["Baseball", "Football", "Basketball"],
-      index=(
-          ["Baseball", "Football", "Basketball"].index(ai_sport)
-          if ai_sport in ["Baseball", "Football", "Basketball"]
-          else 0
-      ),
-  )
-  team = st.text_input("Team", value=ai_team)
-  year = st.number_input(
-      "Year",
-      min_value=1900,
-      max_value=2026,
-      value=int(ai_year) if ai_year else 2024,
-      step=1,
-  )
-  card_number = st.text_input("Card Number (e.g., #18, 154)", value=ai_num)
-  card_type = st.text_input(
-      "Card Type / Variant (e.g., Rookie, Refractor, Prizm)", value=ai_type
-  )
+ + certifi==2026.7.22
 
-  st.markdown("**Estimated Valuation Range ($)**")
-  col_l, col_h = st.sidebar.columns(2)
-  with col_l:
-    val_low = st.number_input(
-        "Low (Raw)", min_value=0.0, format="%.2f", value=0.0
-    )
-  with col_h:
-    val_high = st.number_input(
-        "High (Graded)", min_value=0.0, format="%.2f", value=0.0
-    )
+ + charset-normalizer[2026-08-01 16:26:55.339069] ==3.4.9
 
-  submit_button = st.form_submit_button(label="Save Card to Collection")
+ + click==8.4.2
 
-  if submit_button:
-    if not player_name or not team:
-      st.error("Please provide at least a Player Name and Team.")
-    else:
-      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-      front_path, back_path = "", ""
+ + gitdb==4.0.12
 
-      if front_image:
-        front_path = os.path.join(IMAGE_DIR, f"{timestamp}_front.jpg")
-        with open(front_path, "wb") as f:
-          f.write(front_image.getbuffer())
+ + gitpython==3.1.57
 
-      if back_image:
-        back_path = os.path.join(IMAGE_DIR, f"{timestamp}_back.jpg")
-        with open(back_path, "wb") as f:
-          f.write(back_image.getbuffer())
+ + h11==0.16.0
 
-      conn = sqlite3.connect(DB_FILE)
-      cursor = conn.cursor()
-      cursor.execute(
-          """
-                INSERT INTO cards (player, sport, team, year, card_number, card_type, val_low, val_high, front_path, back_path, date_added)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-          (
-              player_name,
-              sport,
-              team,
-              year,
-              card_number,
-              card_type,
-              val_low,
-              val_high,
-              front_path,
-              back_path,
-              datetime.now().strftime("%Y-%m-%d"),
-          ),
-      )
-      conn.commit()
-      conn.close()
-      st.success(f"Successfully added {player_name}!")
+ + httptools==0.8.0
 
-# Main Explorer View
-st.subheader("Collection Explorer")
+ + idna==3.18
 
-conn = sqlite3.connect(DB_FILE)
-cursor = conn.cursor()
-cursor.execute("SELECT * FROM cards")
-rows = cursor.fetchall()
-conn.close()
+ + itsdangerous==2.2.0
 
-if not rows:
-  st.info(
-      "Your collection is empty. Upload card photos and fill out details in"
-      " the sidebar!"
-  )
-else:
-  card_list = []
-  for r in rows:
-    # Ensure backward compatibility if old database rows had fewer columns
-    card_list.append({
-        "id": r[0],
-        "player": r[1],
-        "sport": r[2],
-        "team": r[3],
-        "year": r[4],
-        "card_number": r[5] if len(r) > 5 and r[5] else "",
-        "card_type": r[6] if len(r) > 6 and r[6] else "",
-        "val_low": r[7] if len(r) > 7 and r[7] else 0.0,
-        "val_high": r[8] if len(r) > 8 and r[8] else 0.0,
-        "front_path": r[9] if len(r) > 9 and r[9] else "",
-        "back_path": r[10] if len(r) > 10 and r[10] else "",
-        "date_added": r[11] if len(r) > 11 and r[11] else "",
-    })
+ + jinja2==3.1.6
 
-  # Filter Layout
-  f1, f2, f3 = st.columns(3)
-  with f1:
-    selected_sport = st.selectbox(
-        "Filter by Sport", ["All"] + list(set(c["sport"] for c in card_list))
-    )
-  with f2:
-    selected_team = st.selectbox(
-        "Filter by Team", ["All"] + list(set(c["team"] for c in card_list))
-    )
-  with f3:
-    view_mode = st.radio("View Mode", ["Polished Gallery", "Table Summary"])
+ +[2026-08-01 16:26:55.339434]  jsonschema==4.26.0
 
-  filtered_cards = card_list
-  if selected_sport != "All":
-    filtered_cards = [c for c in filtered_cards if c["sport"] == selected_sport]
-  if selected_team != "All":
-    filtered_cards = [c for c in filtered_cards if c["team"] == selected_team]
+ + jsonschema-specifications==2025.9.1
 
-  total_low = sum(c["val_low"] for c in filtered_cards)
-  total_high = sum(c["val_high"] for c in filtered_cards)
+ + markupsafe==3.0.3
 
-  m1, m2 = st.columns(2)
-  with m1:
-    st.metric("Total Cards Displayed", len(filtered_cards))
-  with m2:
-    st.metric(
-        "Collection Value Range",
-        value=f"${total_low:,.2f} — ${total_high:,.2f}",
-    )
+ + narwhals==2.24.0[2026-08-01 16:26:55.339630] 
 
-  st.divider()
+ + numpy==2.5.1
 
-  if view_mode == "Polished Gallery":
-    cols_per_row = 3
-    for i in range(0, len(filtered_cards), cols_per_row):
-      row_cards = filtered_cards[i : i + cols_per_row]
-      cols = st.columns(cols_per_row)
-      for idx, card in enumerate(row_cards):
-        with cols[idx]:
-          with st.container():
-            if card["front_path"] and os.path.exists(card["front_path"]):
-              st.image(Image.open(card["front_path"]), width="stretch")
-            else:
-              st.warning("No image available")
+ + packaging==26.2
 
-            num_display = (
-                f"({card['card_number']})" if card["card_number"] else ""
-            )
-            st.markdown(
-                f"### {card['player']} {num_display}"
-            )
-            st.caption(
-                f"**{card['sport']}** | {card['team']} | {card['year']}"
-            )
-            st.markdown(f"🏷️ Type:")
-            st.markdown(
-                f"💰 **Value:** ${card['val_low']:,.2f} –"
-                f" ${card['val_high']:,.2f}"
-            )
+ + pandas==3.0.5
 
-            search_query = (
-                f"{card['year']} {card['player']} {card['card_number']}"
-                f" {card['card_type']}"
-            ).replace(" ", "+")
-            ebay_url = (
-                f"https://www.ebay.com/sch/i.html?_nkw={search_query}&_sacat=0&LH_Sold=1&LH_Complete=1"
-            )
-            st.markdown(
-                f"🔗 [Market Comps (eBay Sold)]({ebay_url})",
-                unsafe_allow_html=True,
-            )
-          st.divider()
+ + pillow==12.3.0
 
-  else:
-    table_data = []
-    for c in filtered_cards:
-      search_query = (
-          f"{c['year']} {c['player']} {c['card_number']} {c['card_type']}"
-      ).replace(" ", "+")
-      ebay_url = (
-          f"https://www.ebay.com/sch/i.html?_nkw={search_query}&_sacat=0&LH_Sold=1&LH_Complete=1"
-      )
-      table_data.append({
-          "Player": c["player"],
-          "Sport": c["sport"],
-          "Team": c["team"],
-          "Year": c["year"],
-          "Card #": c["card_number"],
-          "Type": c["card_type"],
-          "Low ($)": c["val_low"],
-          "High ($)": c["val_high"],
-          "Comps Link": ebay_url,
-      })
-    st.dataframe(table_data, width="stretch")
+ + protobuf==7.35.1
+
+ + pyarrow==24.0.0
+
+ + pydeck==0.9.3
+
+ + python-dateutil==2.9.0.post0
+
+ + python-multipart==0.0.32[2026-08-01 16:26:55.339917] 
+
+ + referencing==0.37.0
+
+ + requests==2.34.2
+
+ + rpds-py==2026.6.3
+
+ + [2026-08-01 16:26:55.339996] six==1.17.0
+
+ + smmap==5.0.3
+
+ + starlette==1.3.1[2026-08-01 16:26:55.340079] 
+
+ + streamlit==1.60.0
+
+ + tenacity==9.1.4
+
+ + toml==0.10.2
+
+ + typing-extensions==[2026-08-01 16:26:55.340193] 4.16.0
+
+ + urllib3==2.7.0
+
+ + uvicorn==0.52.0
+
+ + watchdog==6.0.0[2026-08-01 16:26:55.340284] 
+
+ + websockets==16.1.1
+
+Checking if Streamlit is installed
+
+Found Streamlit version 1.60.0 in the environment
+
+Installing rich for an improved exception logging
+
+Using uv pip install.
+
+Using Python 3.14.6 environment at /home/adminuser/venv
+
+Resolved 4 packages in 107ms
+
+Prepared 4 packages in 117ms
+
+Installed 4 packages in 16ms
+
+ + markdown-it-py==[2026-08-01 16:26:58.111991] 4.2.0
+
+ + mdurl==0.1.2
+
+ + pygments==2.20.0
+
+ + rich==15.0.0
+
+
+────────────────────────────────────────────────────────────────────────────────────────
+
+
+[16:26:59] 🐍 Python dependencies were installed from /mount/src/sportscardtracker/requirements.txt using uv.
+
+Check if streamlit is installed
+
+Streamlit is already installed
+
+[16:27:00] 📦 Processed dependencies!
+
+2026-08-01 16:27:01.796 Uvicorn server started on :::8501
+
+
+
+
+2026-08-01 17:17:36.764 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+2026-08-01 17:18:30.742 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+2026-08-01 17:20:20.744 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+2026-08-01 17:24:52.318 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+2026-08-01 17:27:46.356 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+2026-08-01 17:27:46.640 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+2026-08-01 17:27:58.063 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+2026-08-01 17:30:42.482 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+2026-08-01 17:30:42.757 Please replace `use_container_width` with `width`.
+
+
+`use_container_width` will be removed after 2025-12-31.
+
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+
+[17:37:26] 🐙 Pulling code changes from Github...
+
+[17:37:27] 📦 Processing dependencies...
+
+[17:37:27] 📦 Processed dependencies!
+
+────────────────────── Traceback (most recent call last) ───────────────────────
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/exec_code.py:129 in exec_func_with_error_handling                        
+
+                                                                                
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/script_runner.py:807 in code_to_exec                                     
+
+                                                                                
+
+  /mount/src/sportscardtracker/app.py:237 in <module>                           
+
+                                                                                
+
+    234 │   │     "Valuation High ($)": c["val_high"],                          
+
+    235 │   │     "Market Check": ebay_url,                                     
+
+    236 │   │     "Added": c["date_added"],                                     
+
+  ❱ 237 │     })                                                                
+
+    238 │                                                                       
+
+    239 │   st.dataframe(table_data, use_container_width=True)                  
+
+    240                                                                         
+
+────────────────────────────────────────────────────────────────────────────────
+
+IndexError: tuple index out of range
+
+[17:37:28] 🔄 Updated app!
+
+────────────────────── Traceback (most recent call last) ───────────────────────
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/exec_code.py:129 in exec_func_with_error_handling                        
+
+                                                                                
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/script_runner.py:807 in code_to_exec                                     
+
+                                                                                
+
+  /mount/src/sportscardtracker/app.py:237 in <module>                           
+
+                                                                                
+
+    234 │   │   "val_high": r[8],                                               
+
+    235 │   │   "front_path": r[9],                                             
+
+    236 │   │   "back_path": r[10],                                             
+
+  ❱ 237 │   │   "date_added": r[11],                                            
+
+    238 │   })                                                                  
+
+    239                                                                         
+
+    240   # Filter Layout                                                       
+
+────────────────────────────────────────────────────────────────────────────────
+
+IndexError: tuple index out of range
+
+────────────────────── Traceback (most recent call last) ───────────────────────
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/exec_code.py:129 in exec_func_with_error_handling                        
+
+                                                                                
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/script_runner.py:807 in code_to_exec                                     
+
+                                                                                
+
+  /mount/src/sportscardtracker/app.py:237 in <module>                           
+
+                                                                                
+
+    234 │   │   "val_high": r[8],                                               
+
+    235 │   │   "front_path": r[9],                                             
+
+    236 │   │   "back_path": r[10],                                             
+
+  ❱ 237 │   │   "date_added": r[11],                                            
+
+    238 │   })                                                                  
+
+    239                                                                         
+
+    240   # Filter Layout                                                       
+
+────────────────────────────────────────────────────────────────────────────────
+
+IndexError: tuple index out of range
+
+────────────────────── Traceback (most recent call last) ───────────────────────
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/exec_code.py:129 in exec_func_with_error_handling                        
+
+                                                                                
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/script_runner.py:807 in code_to_exec                                     
+
+                                                                                
+
+  /mount/src/sportscardtracker/app.py:237 in <module>                           
+
+                                                                                
+
+    234 │   │   "val_high": r[8],                                               
+
+    235 │   │   "front_path": r[9],                                             
+
+    236 │   │   "back_path": r[10],                                             
+
+  ❱ 237 │   │   "date_added": r[11],                                            
+
+    238 │   })                                                                  
+
+    239                                                                         
+
+    240   # Filter Layout                                                       
+
+────────────────────────────────────────────────────────────────────────────────
+
+IndexError: tuple index out of range
+
+[17:40:00] 🐙 Pulling code changes from Github...
+
+[17:40:02] 📦 Processing dependencies...
+
+[17:40:02] 📦 Processed dependencies!
+
+────────────────────── Traceback (most recent call last) ───────────────────────
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/exec_code.py:129 in exec_func_with_error_handling                        
+
+                                                                                
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/script_runner.py:807 in code_to_exec                                     
+
+                                                                                
+
+  /mount/src/sportscardtracker/app.py:255 in <module>                           
+
+                                                                                
+
+    252                                                                         
+
+    253   filtered_cards = card_list                                            
+
+    254   if selected_sport != "All":                                           
+
+  ❱ 255 │   filtered_cards = [c for c in filtered_cards if c["sport"] == selec  
+
+    256   if selected_team != "All":                                            
+
+    257 │   filtered_cards = [c for c in filtered_cards if c["team"] == select  
+
+    258                                                                         
+
+────────────────────────────────────────────────────────────────────────────────
+
+TypeError: unsupported operand type(s) for +: 'int' and 'str'
+
+[17:40:03] 🔄 Updated app!
+
+[17:42:38] 🐙 Pulling code changes from Github...
+
+[17:42:39] 📦 Processing dependencies...
+
+[17:42:39] 📦 Processed dependencies!
+
+[17:42:41] 🔄 Updated app!
+
+────────────────────── Traceback (most recent call last) ───────────────────────
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/exec_code.py:129 in exec_func_with_error_handling                        
+
+                                                                                
+
+  /home/adminuser/venv/lib/python3.14/site-packages/streamlit/runtime/scriptru  
+
+  nner/script_runner.py:807 in code_to_exec                                     
+
+                                                                                
+
+  /mount/src/sportscardtracker/app.py:255 in <module>                           
+
+                                                                                
+
+    252 │   filtered_cards = [c for c in filtered_cards if c["team"] == select  
+
+    253                                                                         
+
+    254   total_low = sum(c["val_low"] for c in filtered_cards)                 
+
+  ❱ 255   total_high = sum(c["val_high"] for c in filtered_cards)               
+
+    256                                                                         
+
+    257   m1, m2 = st.columns(2)                                                
+
+    258   with m1:                                                              
+
+────────────────────────────────────────────────────────────────────────────────
+
+TypeError: unsupported operand type(s) for +
