@@ -21,6 +21,7 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 def init_db():
   conn = sqlite3.connect(DB_FILE)
   cursor = conn.cursor()
+  # Create table if it doesn't exist
   cursor.execute("""
         CREATE TABLE IF NOT EXISTS cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,6 +38,12 @@ def init_db():
             date_added TEXT
         )
     """)
+  # Safety check: ensure card_number column exists if table was already created previously
+  cursor.execute("PRAGMA table_info(cards)")
+  columns = [info[1] for info in cursor.fetchall()]
+  if "card_number" not in columns:
+    cursor.execute("ALTER TABLE cards ADD COLUMN card_number TEXT")
+
   conn.commit()
   conn.close()
 
@@ -47,17 +54,9 @@ st.set_page_config(
     page_title="Elite Card Collector", page_icon="⭐", layout="wide"
 )
 
-# Custom CSS for a polished, card-focused UI
+# Custom CSS for polished layout
 st.markdown("""
     <style>
-    .card-container {
-        background-color: #1e1e24;
-        border: 1px solid #33333d;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        text-align: center;
-    }
     .metric-card {
         background-color: #262730;
         padding: 15px;
@@ -78,7 +77,6 @@ api_key = st.sidebar.text_input(
 st.sidebar.divider()
 st.sidebar.header("Add New Card")
 
-# Image uploaders first so AI can read them
 front_image = st.sidebar.file_uploader(
     "Card Front Image", type=["jpg", "png", "jpeg"], key="front_upload"
 )
@@ -86,7 +84,6 @@ back_image = st.sidebar.file_uploader(
     "Card Back Image", type=["jpg", "png", "jpeg"], key="back_upload"
 )
 
-# Initialize form default values
 ai_player, ai_sport, ai_team, ai_year, ai_num, ai_type = (
     "",
     "Baseball",
@@ -96,7 +93,6 @@ ai_player, ai_sport, ai_team, ai_year, ai_num, ai_type = (
     "Base",
 )
 
-# AI Auto-Population Logic if API key is provided and front image is uploaded
 if HAS_GENAI and api_key and front_image:
   if st.sidebar.button("✨ Auto-Detect Card Details with AI"):
     try:
@@ -143,15 +139,13 @@ with st.sidebar.form("add_card_form"):
       value=int(ai_year) if ai_year else 2024,
       step=1,
   )
-  card_number = st.text_input(
-      "Card Number (e.g., #18, 154)", value=ai_num
-  )
+  card_number = st.text_input("Card Number (e.g., #18, 154)", value=ai_num)
   card_type = st.text_input(
       "Card Type / Variant (e.g., Rookie, Refractor, Prizm)", value=ai_type
   )
 
   st.markdown("**Estimated Valuation Range ($)**")
-  col_l, col_h = st.columns(2)
+  col_l, col_h = st.sidebar.columns(2)
   with col_l:
     val_low = st.number_input(
         "Low (Raw)", min_value=0.0, format="%.2f", value=0.0
@@ -222,19 +216,20 @@ if not rows:
 else:
   card_list = []
   for r in rows:
+    # Ensure backward compatibility if old database rows had fewer columns
     card_list.append({
         "id": r[0],
         "player": r[1],
         "sport": r[2],
         "team": r[3],
         "year": r[4],
-        "card_number": r[5],
-        "card_type": r[6],
-        "val_low": r[7],
-        "val_high": r[8],
-        "front_path": r[9],
-        "back_path": r[10],
-        "date_added": r[11],
+        "card_number": r[5] if len(r) > 5 and r[5] else "",
+        "card_type": r[6] if len(r) > 6 and r[6] else "",
+        "val_low": r[7] if len(r) > 7 and r[7] else 0.0,
+        "val_high": r[8] if len(r) > 8 and r[8] else 0.0,
+        "front_path": r[9] if len(r) > 9 and r[9] else "",
+        "back_path": r[10] if len(r) > 10 and r[10] else "",
+        "date_added": r[11] if len(r) > 11 and r[11] else "",
     })
 
   # Filter Layout
@@ -278,15 +273,11 @@ else:
       for idx, card in enumerate(row_cards):
         with cols[idx]:
           with st.container():
-            # Card Image Front & Center Presentation
             if card["front_path"] and os.path.exists(card["front_path"]):
-              st.image(
-                  Image.open(card["front_path"]), use_container_width=True
-              )
+              st.image(Image.open(card["front_path"]), width="stretch")
             else:
               st.warning("No image available")
 
-            # Clean Typography Display (No raw markdown glitching)
             num_display = (
                 f"({card['card_number']})" if card["card_number"] else ""
             )
@@ -335,4 +326,4 @@ else:
           "High ($)": c["val_high"],
           "Comps Link": ebay_url,
       })
-    st.dataframe(table_data, use_container_width=True)
+    st.dataframe(table_data, width="stretch")
